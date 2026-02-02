@@ -19,7 +19,7 @@ class ArduPilotLaunchTool:
     Ardupilot was already built with 'make ardupilot_sitl_default none'), the vehicle id and the vehicle model. 
     """
 
-    def __init__(self, ardupilot_dir, vehicle_id: int = 0, ardupilot_model: str = "gazebo-iris"):
+    def __init__(self, ardupilot_dir, vehicle="ArduPlane", vehicle_id: int = 0, ardupilot_model: str = "gazebo-iris"):
         """Construct the ArduPilotLaunchTool object
 
         Args:
@@ -50,6 +50,9 @@ class ArduPilotLaunchTool:
         # Set the environement variables that let Ardupilot know which vehicle model to use internally
         self.environment = os.environ
 
+        # Set the vehicle type ArduCopter/ArduPlane
+        self.vehicle = vehicle
+
     def _sitl_already_exists(self):
         return os.path.exists(f'{self.ardupilot_dir}/build/sitl/bin/arducopter')
     
@@ -62,7 +65,7 @@ class ArduPilotLaunchTool:
         """
         command = [
             "python3", f"{self.ardupilot_dir}/Tools/autotest/sim_vehicle.py",
-            "-v", "ArduCopter",
+            "-v", f"{self.vehicle}",
             "-f", f"{self._get_vehicle_frame()}",
             "--model", f"{self.model}",
             f"{'--no-rebuild' if self._sitl_already_exists() else ''}",
@@ -75,14 +78,10 @@ class ArduPilotLaunchTool:
         ]
         command_str = " ".join(command)
         
-        # --- FIX STARTS HERE ---
-        # Create a copy of the current environment
         clean_env = self.environment.copy()
         
-        # Remove the Isaac Sim variables that cause the SRE module mismatch
         clean_env.pop("PYTHONPATH", None)
         clean_env.pop("LD_LIBRARY_PATH", None)
-        # --- FIX ENDS HERE ---
         
         # Run in a separate bash window using the cleaned environment
         self.ardupilot_process = subprocess.Popen(
@@ -104,7 +103,7 @@ class ArduPilotLaunchTool:
             self.ardupilot_process = None
 
         # Define the keywords to search for in process names
-        keywords = ['arducopter', 'mavproxy']
+        keywords = ['arducopter', 'mavproxy', 'arduplane']
 
         # Get the list of all running processes using the ps command
         ps_output = subprocess.run(['ps', '-aux'], capture_output=True, text=True)
