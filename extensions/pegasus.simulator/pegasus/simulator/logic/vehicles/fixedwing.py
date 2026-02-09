@@ -242,25 +242,29 @@ class FixedWing(Vehicle):
         
         # 3. Calculate aerodynamic forces and moments
         aero_forces, aero_moments = self._calculate_aerodynamics()
-        carb.log_info(f"Calculated force: {aero_forces}")
-        carb.log_info(f"Calculated moment: {aero_moments}")
+        aero_forces = [f * (-1) for f in aero_forces]
+        aero_moments = [f * (-1) for f in aero_moments]
+
+        carb.log_info(f"Calculated Aero Force: {aero_forces}")
+        carb.log_info(f"Calculated Aero Moment: {aero_moments}")
         
         # 4. Apply propeller thrust (in body frame, pointing forward)
-        self.apply_force([0.0, -thrust_force * 10, 0.0], body_part="/body")
-        # self.apply_force([0.0, 0.0, 10000.0], body_part="/body")
+        self.apply_force([0.0, -thrust_force, 0.0], body_part="/body")
+
+        # self.apply_force([0.0, -1000.0, 5000.0], body_part="/body")
         
         # # 5. Apply aerodynamic forces
         self.apply_force(aero_forces, body_part="/body")
         
-        # # 6. Apply aerodynamic moments
+        # # # 6. Apply aerodynamic moments
         self.apply_torque(aero_moments, body_part="/body")
         
-        # # 7. Apply drag
+        # # # 7. Apply drag
         drag_force = self._drag.update(self._state, dt)
         self.apply_force(drag_force, body_part="/body")
         
         # 8. Update propeller visual (if you have a revolute joint named "propeller" or "joint0")
-        self._update_propeller_visual()
+        # self._update_propeller_visual()
         
         # 9. Update backends
         for backend in self._backends:

@@ -84,7 +84,7 @@ class FixedWingApp:
         config = FixedWingConfig()
         
         # Propeller/Motor settings
-        config.prop_max_thrust = 75.0          # Maximum thrust in Newtons
+        config.prop_max_thrust = 10000.0          # Maximum thrust in Newtons
         config.prop_max_rpm = 10000.0          # Maximum RPM
         config.prop_thrust_coefficient = 0.000075  # Thrust coefficient
         config.prop_rotation_dir = 1           # 1: CCW, -1: CW
