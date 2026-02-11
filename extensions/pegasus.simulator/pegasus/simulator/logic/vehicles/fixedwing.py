@@ -244,7 +244,8 @@ class FixedWing(Vehicle):
         """
         pass
 
-    def update_debug(self, dt: float):
+    # def update_debug(self, dt: float):
+    def update(self, dt: float):
         # 2. Get real-time values from the GUI
         # forces = [x, y, z] (Body Frame), torques = [roll, pitch, yaw] (Body Frame)
         pos = self._state.position
@@ -277,10 +278,26 @@ class FixedWing(Vehicle):
         self.apply_force(forces_global)
         self.apply_torque(torques_global)
 
+        timestamp = self._state.time if hasattr(self._state, 'time') else time.time()
+        self._csv_writer.writerow([
+            timestamp,
+            0,
+            0, # Fz (Lift-ish)
+            0, # Fy (Drag-ish)
+            0, # Fx (Side)
+            0, # Mx
+            0, # My
+            0, # Mz
+            self._state.linear_body_velocity[0],
+            self._state.linear_body_velocity[1],
+            self._state.linear_body_velocity[2],
+        ])
+        self._log_file.flush()
+
         for backend in self._backends:
             backend.update(dt)
 
-    def update(self, dt: float):
+    def update2(self, dt: float):
         """
         Main update loop - computes and applies aerodynamic forces and moments
         This is called at every physics step.
@@ -342,14 +359,14 @@ class FixedWing(Vehicle):
         self.apply_force(thrust_force, body_part="/body")
         
         # # 5. Apply aerodynamic forces
-        self.apply_force(aero_forces, body_part="/body")
+        # self.apply_force(aero_forces, body_part="/body")
         
         # # # 6. Apply aerodynamic moments
-        self.apply_torque(aero_moments, body_part="/body")
+        # self.apply_torque(aero_moments, body_part="/body")
         
         # # # 7. Apply drag
         drag_force = self._drag.update(self._state, dt)
-        self.apply_force(drag_force, body_part="/body")
+        # self.apply_force(drag_force, body_part="/body")
         
         # 8. Update propeller visual (if you have a revolute joint named "propeller" or "joint0")
         # self._update_propeller_visual()
