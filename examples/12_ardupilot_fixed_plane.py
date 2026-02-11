@@ -25,10 +25,7 @@ from pegasus.simulator.params import SIMULATION_ENVIRONMENTS, ROBOTS
 from pegasus.simulator.logic.backends.ardupilot_mavlink_backend import (
     ArduPilotMavlinkBackend, ArduPilotMavlinkBackendConfig
 )
-# Alternative: Ardupilot backend
-# from pegasus.simulator.logic.backends.ardupilot_mavlink_backend import (
-#     ArduPilotMavlinkBackend, ArduPilotMavlinkBackendConfig
-# )
+
 from pegasus.simulator.logic.backends.ros2_backend import ROS2Backend
 from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
 
@@ -78,19 +75,16 @@ class FixedWingApp:
         Create a single fixed-wing aircraft with configured backend
         """
         
-        # ============================================
-        # FIXED-WING CONFIGURATION
-        # ============================================
         config = FixedWingConfig()
         
         # Propeller/Motor settings
-        config.prop_max_thrust = 1000.0          # Maximum thrust in Newtons
+        config.prop_max_thrust = 100.0          # Maximum thrust in Newtons (Targeting ~1kg mass)
         config.prop_max_rpm = 10000.0          # Maximum RPM
         config.prop_thrust_coefficient = 0.000075  # Thrust coefficient
         config.prop_rotation_dir = 1           # 1: CCW, -1: CW
         
         # Aircraft geometry
-        config.wing_area = 0.65                # Wing area (m²)
+        config.wing_area = 2.36                # Wing area (m²) (Span 4.46 * Chord 0.53)
         config.wing_span = 4.46                 # Wing span (m)
         config.chord = 0.53                    # Mean aerodynamic chord (m)
         
@@ -105,9 +99,6 @@ class FixedWingApp:
         config.Cl_aileron = 0.3                # Aileron roll moment
         config.Cn_rudder = -0.05               # Rudder yaw moment
         
-        # ============================================
-        # ALTERNATIVE: ARDUPILOT BACKEND (Uncomment to use)
-        # ============================================
         ardupilot_config = ArduPilotMavlinkBackendConfig({
             "vehicle_id": 0,
             "ardupilot_autolaunch": True,
@@ -116,30 +107,15 @@ class FixedWingApp:
             "ardupilot_vehicle" : "ArduPlane"
         })
         
-        # ============================================
-        # ROS2 BACKEND (Optional - for ROS2 integration)
-        # ============================================
-        ros2_config = {
-            "namespace": "fixedwing",
-            "pub_sensors": True,
-            "pub_graphical_sensors": True,
-            "pub_state": True,
-            "sub_control": False,
-            "pub_tf": True,
-        }
-        
         # Combine backends
         config.backends = [
-            ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
-            # ROS2Backend(vehicle_id=0, config=ros2_config)        # Optional ROS2
+            # ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
         ]
-        
-        # ============================================
-        # CREATE THE AIRCRAFT
-        # ============================================
+
         self.aircraft = FixedWing(
             stage_prefix="/World/fixedwing0",
             usd_file=ROBOTS['Fixed Wing'],
+            # usd_file=ROBOTS['bot'],
             vehicle_id=0,
             init_pos=[0.0, 0.0, 0.2],                    # Start 0.2m above ground
             init_orientation=Rotation.from_euler("XYZ", [0.0, 0.0, 0.0], degrees=True).as_quat(),
@@ -153,23 +129,13 @@ class FixedWingApp:
         Main application loop - executes physics steps
         """
 
-        # Start the simulation
         self.timeline.play()
         print("▶ Simulation started!")
 
         # The "infinite" loop
         while simulation_app.is_running() and not self.stop_sim:
-
-            # Update the UI and perform physics step
             self.world.step(render=True)
             
-            # Optional: Print aerodynamic state every 100 steps (for debugging)
-            # if self.world.current_time_step_index % 100 == 0:
-            #     aero_state = self.aircraft.get_aerodynamic_state()
-            #     print(f"Airspeed: {aero_state['airspeed']:.2f} m/s, "
-            #           f"AoA: {aero_state['angle_of_attack']:.1f}°, "
-            #           f"Throttle: {aero_state['throttle']:.0%}")
-        
         # Cleanup and stop
         carb.log_warn("Fixed-wing Simulation App is closing.")
         self.timeline.stop()
@@ -180,10 +146,7 @@ def main():
     """
     Main entry point
     """
-    # Instantiate the app
     app = FixedWingApp()
-
-    # Run the application loop
     app.run()
 
 

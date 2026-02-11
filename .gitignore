@@ -45,3 +45,4 @@ log/
 
 # garbage
 tmp
+forces_log*
