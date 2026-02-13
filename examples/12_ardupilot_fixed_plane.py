@@ -109,7 +109,7 @@ class FixedWingApp:
         
         # Combine backends
         config.backends = [
-            ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
+            # ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
         ]
 
         self.aircraft = FixedWing(

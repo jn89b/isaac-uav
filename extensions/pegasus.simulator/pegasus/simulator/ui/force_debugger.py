@@ -1,5 +1,6 @@
 import omni.ui as ui
 import omni.kit.app
+import numpy as np
 
 # 1. Enable the extension dynamically
 manager = omni.kit.app.get_app().get_extension_manager()
@@ -76,7 +77,7 @@ class ForceControlWindow:
         t = [self.models["tx"].as_float, 
              self.models["ty"].as_float, 
              self.models["tz"].as_float]
-        return f, t
+        return np.array([f, t])
 
     def shutdown(self):
         """Clean up window"""

@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 
 # Low level APIs
 import carb
-from pxr import Usd, Gf
+from pxr import Usd, Gf, UsdGeom, UsdLux, UsdPhysics
 
 # High level Isaac sim APIs
 import omni.usd
@@ -73,7 +73,6 @@ class Vehicle(Robot):
         # Save the name with which the vehicle will appear in the stage
         # and the name of the .usd file that contains its description
         self._stage_prefix = get_stage_next_free_path(self._current_stage, stage_prefix, False)
-        print(f"\n@ Vehicle: {self._stage_prefix}")
         self._usd_file = usd_path
 
         # Get the vehicle name by taking the last part of vehicle stage prefix
@@ -150,6 +149,39 @@ class Vehicle(Robot):
         # -------------------- Add the graphs to the vehicle -----------------
         # --------------------------------------------------------------------
         self._graphs = graphs
+
+        # --------------------------------------------------------------------
+        # -------------------- Add Tracking Camera ---------------------------
+        # --------------------------------------------------------------------
+        
+        # 1. Define a path for the camera (placing it outside the vehicle hierarchy for a 'fixed' position)
+        camera_path = self._stage_prefix + "_tracking_cam"
+        self._tracking_cam = define_prim(self._stage_prefix + "/body" + camera_path, "Camera")
+
+        xformable = UsdGeom.Xformable(self._tracking_cam)
+        
+        # This ensures the 'xformOp:translate' attribute is actually created before setting it
+        # Clear existing ops to avoid conflicts and add a clean translation op
+        xformable.ClearXformOpOrder()
+        translate_op = xformable.AddTranslateOp()
+        rotate_op = xformable.AddRotateXYZOp()
+        
+        # Some magic numbers :)
+        offset_pos = Gf.Vec3d(
+            init_pos[0] - 13.685, 
+            init_pos[1] - 0.078, 
+            init_pos[2] + 5.997
+        )
+
+        translate_op.Set(offset_pos)
+
+        # Some magic numbers here also :)
+        rotate_op.Set(Gf.Vec3f(64.994, -1.141, -88.740))
+
+        # 3. Apply the LookAt Relationship
+        # Ensure we target the 'body' prim which contains the physics/visuals
+        target_path = self._stage_prefix + "/body"
+        self._tracking_cam.CreateRelationship("lookAt").AddTarget(target_path)
 
         for graph in self._graphs:
             graph.initialize(self)

@@ -31,6 +31,16 @@ import csv
 import os
 import time
 
+# Constants for physical limits
+MIN_THROTTLE = -100.0
+MAX_THROTTLE = 100.0
+
+MIN_FORCE = -1000.0
+MAX_FORCE = 1000.0
+
+MIN_MOMENTS = -100.0
+MAX_MOMENTS = 100.0
+
 class FixedWingConfig:
     """
     A data class that is used for configuring a Fixed-Wing Aircraft
@@ -43,9 +53,6 @@ class FixedWingConfig:
 
         # Stage prefix of the vehicle when spawning in the world
         self.stage_prefix = "fixedwing"
-
-        # The USD file that describes the visual aspect of the vehicle
-        self.usd_file = "../../assets/Robots/yoda_fixed_wing/yoda_fixed_wing.usd"
 
         # ============================================
         # PROPELLER/MOTOR CONFIGURATION
@@ -244,8 +251,8 @@ class FixedWing(Vehicle):
         """
         pass
 
-    # def update_debug(self, dt: float):
-    def update(self, dt: float):
+    def update_debug(self, dt: float):
+    # def update(self, dt: float):
         # 2. Get real-time values from the GUI
         # forces = [x, y, z] (Body Frame), torques = [roll, pitch, yaw] (Body Frame)
         pos = self._state.position
@@ -297,7 +304,7 @@ class FixedWing(Vehicle):
         for backend in self._backends:
             backend.update(dt)
 
-    def update2(self, dt: float):
+    def update(self, dt: float):
         """
         Main update loop - computes and applies aerodynamic forces and moments
         This is called at every physics step.
@@ -316,15 +323,20 @@ class FixedWing(Vehicle):
 
         self.debug_drawer.clear()
 
+        forces_body, torques_body = self.force_ui.get_inputs()
         r = Rotation.from_quat(self._state.attitude)
 
-        thrust_force = self._calculate_propeller_thrust()
-        thrust_force = r.apply(thrust_force).tolist()
+        # thrust_force = self._calculate_propeller_thrust()
+        # thrust_force = r.apply(thrust_force).tolist()
+        thrust_force = r.apply(forces_body)#.tolist()
+
         aero_forces, aero_moments = self._calculate_aerodynamics()
+        drag_force = self._drag.update(self._state, dt)
 
         carb.log_info(f"Calculated Thrust: {thrust_force}")
         carb.log_info(f"Calculated Aero Force: {aero_forces}")
         carb.log_info(f"Calculated Aero Moment: {aero_moments}")
+        carb.log_info(f"Calculated Drag: {drag_force}")
 
         # Log to CSV
         if self._csv_writer:
@@ -338,44 +350,53 @@ class FixedWing(Vehicle):
                     aero_forces[2], # Fz (Lift-ish)
                     aero_forces[1], # Fy (Drag-ish)
                     aero_forces[0], # Fx (Side)
-                    aero_moments[0], # Mx
-                    aero_moments[1], # My
-                    aero_moments[2], # Mz
-                    self._state.linear_body_velocity[0],
-                    self._state.linear_body_velocity[1],
-                    self._state.linear_body_velocity[2],
+                    # Zero our for debugging.
+                    0 * aero_moments[0], # Mx
+                    0 * aero_moments[1], # My
+                    0 * aero_moments[2], # Mz
+                    0 * self._state.linear_body_velocity[0],
+                    0 * self._state.linear_body_velocity[1],
+                    0 * self._state.linear_body_velocity[2],
                 ])
                 self._log_file.flush()
             except Exception as e:
                 carb.log_warn(f"Failed to log forces: {e}")
 
 
-        self.debug_drawer.draw_vector(pos, thrust_force, color=(1, 0, 0, 1), scale=0.1)
-        self.debug_drawer.draw_vector(pos, aero_forces, color=(1, 1, 0, 1), scale=0.1)
-        self.debug_drawer.draw_vector(offset_pos, aero_moments, color=(0, 0, 1, 1), scale=0.1)
+        # --- Thrust Force ---
+        if np.any(thrust_force < MIN_THROTTLE) or np.any(thrust_force > MAX_THROTTLE):
+            carb.log_warn(f"Thrust force exceeded limits {thrust_force} and was clamped.")
+            thrust_force = np.clip(thrust_force, MIN_THROTTLE, MAX_THROTTLE)
 
-        # 4. Apply propeller thrust (in body frame, pointing forward)
-        # self.apply_force([0.0, -thrust_force, 0.0], body_part="/body")
+        # --- Aero Forces ---
+        if np.any(aero_forces < MIN_FORCE) or np.any(aero_forces > MAX_FORCE):
+            carb.log_warn(f"Aero forces exceeded limits {aero_forces} and were clamped.")
+            aero_forces = np.clip(aero_forces, MIN_FORCE, MAX_FORCE)
+
+        # # --- Aero Moments ---
+        # if np.any(aero_moments < MIN_MOMENTS) or np.any(aero_moments > MAX_MOMENTS):
+        #     carb.log_warn(f"Aero moments exceeded limits {aero_moments} and were clamped.")
+        #     aero_moments = np.clip(aero_moments, MIN_MOMENTS, MAX_MOMENTS)
+
+        # # --- Drag ---
+        # if np.any(drag_force < MIN_FORCE) or np.any(drag_force > MAX_FORCE):
+        #     carb.log_warn(f"Aero drag exceeded limits {drag_force} and were clamped.")
+        #     drag_force = np.clip(drag_force, MIN_MOMENTS, MAX_MOMENTS)
+
+        self.debug_drawer.draw_vector(pos, thrust_force, color=(1, 0, 0, 1), scale=0.1)        # Red -> Thrust
+        self.debug_drawer.draw_vector(pos, aero_forces, color=(1, 1, 0, 1), scale=0.1)         # Yellow -> Forces
+        # self.debug_drawer.draw_vector(offset_pos, aero_moments, color=(0, 0, 1, 1), scale=0.1) # Blue -> Moment
+        # self.debug_drawer.draw_vector(offset_pos, drag_force, color=(0, 1, 1, 1), scale=0.1)   # Cyan -> Drag
+
         self.apply_force(thrust_force, body_part="/body")
-        
-        # # 5. Apply aerodynamic forces
-        # self.apply_force(aero_forces, body_part="/body")
-        
-        # # # 6. Apply aerodynamic moments
-        # self.apply_torque(aero_moments, body_part="/body")
-        
-        # # # 7. Apply drag
-        drag_force = self._drag.update(self._state, dt)
+        self.apply_force(aero_forces, body_part="/body")
         # self.apply_force(drag_force, body_part="/body")
-        
-        # 8. Update propeller visual (if you have a revolute joint named "propeller" or "joint0")
-        # self._update_propeller_visual()
+        # self.apply_torque(aero_moments, body_part="/body")
         
         # 9. Update backends
         for backend in self._backends:
             backend.update(dt)
             
-
     def _update_control_inputs(self):
         if len(self._backends) != 0:
             raw_inputs = self._backends[0].input_reference()
@@ -541,17 +562,12 @@ class FixedWing(Vehicle):
 
         carb.log_info(f"--- Aerodynamics Cycle Ends ---\n\n")
         
-        # Transform from Aero Body (FRD: X=Forward, Y=Right, Z=Down)
-        # to Isaac Sim Body (FLU: X=Forward, Y=Left, Z=Up)
-        # This is a 180° rotation about the X-axis (Forward axis):
-        #   FLU_x =  FRD_x   (Forward = Forward)
-        #   FLU_y = -FRD_y   (Left    = -Right)
-        #   FLU_z = -FRD_z   (Up      = -Down)
         forces_flu = np.array([
              forces_aero[0],   # Fx (Forward) unchanged
             -forces_aero[1],   # Fy: Right → Left
             -forces_aero[2]    # Fz: Down → Up
         ])
+
         moments_flu = np.array([
              moments_aero[0],  # Mx (Roll) unchanged
             -moments_aero[1],  # My (Pitch) sign flipped
