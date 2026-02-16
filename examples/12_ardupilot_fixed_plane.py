@@ -100,7 +100,7 @@ class FixedWingApp:
         config.Cn_rudder = -0.05               # Rudder yaw moment
 
         # Simulation
-        config.simulation_mode = 'thrust_only' # full, thrust_only
+        config.simulation_mode = 'autonomous' # autonomous, thrust_only
         
         ardupilot_config = ArduPilotMavlinkBackendConfig({
             "vehicle_id": 0,
@@ -112,7 +112,7 @@ class FixedWingApp:
         
         # Combine backends
         config.backends = [
-            #ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
+            ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
         ]
 
         self.aircraft = FixedWing(

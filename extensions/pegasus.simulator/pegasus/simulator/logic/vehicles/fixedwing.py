@@ -39,8 +39,8 @@ MAX_THROTTLE = 500.0
 MIN_FORCE = -1000.0
 MAX_FORCE = 1000.0
 
-MIN_MOMENTS = -100.0
-MAX_MOMENTS = 100.0
+MIN_MOMENTS = -500.0
+MAX_MOMENTS = 500.0
 
 class FixedWingConfig:
     """
@@ -88,9 +88,16 @@ class FixedWingConfig:
         
         # Roll moment coefficients  
         self.Cl_beta = -0.12   # Roll moment due to sideslip (dihedral effect)
+        self.Cl_p = -0.50      # Roll damping due to roll rate
+        self.Cl_r = 0.15       # Roll-yaw coupling due to yaw rate
         
         # Yaw moment coefficients
         self.Cn_beta = 0.25    # Yaw moment due to sideslip (weathercock stability)
+        self.Cn_p = -0.06      # Yaw-roll coupling due to roll rate
+        self.Cn_r = -0.20      # Yaw damping due to yaw rate
+
+        # Pitch damping coefficient
+        self.Cm_q = -8.0       # Pitch damping due to pitch rate
 
         # ============================================
         # CONTROL SURFACE DERIVATIVES
@@ -148,6 +155,14 @@ class FixedWingConfig:
 
         # Rate of takeoff viability diagnostics [Hz]
         self.viability_log_rate_hz = 10.0
+
+        # Control input sign mapping (useful when backend and sim conventions differ).
+        # Defaults assume backend commands are FRD-like while the simulated body is FLU:
+        # roll about X unchanged, pitch and yaw signs flipped.
+        self.aileron_sign = 1.0
+        self.elevator_sign = -1.0
+        self.throttle_sign = 1.0
+        self.rudder_sign = -1.0
 
 
 class FixedWing(Vehicle):
@@ -215,7 +230,12 @@ class FixedWing(Vehicle):
         self._Cm_alpha = config.Cm_alpha
         
         self._Cl_beta = config.Cl_beta
+        self._Cl_p = config.Cl_p
+        self._Cl_r = config.Cl_r
         self._Cn_beta = config.Cn_beta
+        self._Cn_p = config.Cn_p
+        self._Cn_r = config.Cn_r
+        self._Cm_q = config.Cm_q
         
         # Control surface derivatives
         self._CL_elevator = config.CL_elevator
@@ -238,6 +258,10 @@ class FixedWing(Vehicle):
         self._vehicle_mass_kg = None
         self._viability_log_period = 1.0 / max(float(config.viability_log_rate_hz), 0.1)
         self._viability_log_accum = 0.0
+        self._aileron_sign = float(config.aileron_sign)
+        self._elevator_sign = float(config.elevator_sign)
+        self._throttle_sign = float(config.throttle_sign)
+        self._rudder_sign = float(config.rudder_sign)
         
         # Current control inputs (will be updated from backend)
         self._throttle = 0.0      # 0.0 to 1.0
@@ -564,16 +588,17 @@ class FixedWing(Vehicle):
                 return 0.5 * (x + 1.0)
             return x
 
-        self._aileron = np.clip(_normalize_surface(ail_raw), -1.0, 1.0)
-        self._elevator = np.clip(_normalize_surface(ele_raw), -1.0, 1.0)
-        self._throttle = np.clip(_normalize_throttle(thr_raw), 0.0, 1.0)
-        self._rudder = np.clip(_normalize_surface(rud_raw), -1.0, 1.0)
+        self._aileron = np.clip(self._aileron_sign * _normalize_surface(ail_raw), -1.0, 1.0)
+        self._elevator = np.clip(self._elevator_sign * _normalize_surface(ele_raw), -1.0, 1.0)
+        self._throttle = np.clip(self._throttle_sign * _normalize_throttle(thr_raw), 0.0, 1.0)
+        self._rudder = np.clip(self._rudder_sign * _normalize_surface(rud_raw), -1.0, 1.0)
 
         carb.log_info(
             f"FixedWing Inputs -> Ail: {self._aileron:.3f}, "
             f"Ele: {self._elevator:.3f}, "
             f"Thr: {self._throttle:.3f}, "
-            f"Rud: {self._rudder:.3f}"
+            f"Rud: {self._rudder:.3f} | "
+            f"signs(A,E,T,R)=({self._aileron_sign:+.0f},{self._elevator_sign:+.0f},{self._throttle_sign:+.0f},{self._rudder_sign:+.0f})"
         )
 
     def _calculate_propeller_thrust(self) -> float:
@@ -635,6 +660,17 @@ class FixedWing(Vehicle):
         # Dynamic pressure
         q = 0.5 * self._air_density * V**2
         carb.log_info(f"Dynamic Pressure (q): {q:.4f} Pa (rho={self._air_density})")
+
+        # Body angular rates are in FLU. Convert to FRD-compatible rates used by
+        # conventional aerodynamic derivatives (p same, q/r sign inverted).
+        p_flu, q_flu, r_flu = self._state.angular_velocity
+        p_rate = p_flu
+        q_rate = -q_flu
+        r_rate = -r_flu
+
+        p_hat = p_rate * self._wing_span / (2.0 * V)
+        q_hat = q_rate * self._chord / (2.0 * V)
+        r_hat = r_rate * self._wing_span / (2.0 * V)
         
         # ==========================================
         # LIFT COEFFICIENT
@@ -659,13 +695,28 @@ class FixedWing(Vehicle):
         # MOMENT COEFFICIENTS
         # ==========================================
         # Roll moment (around X-axis)
-        Cl = self._Cl_beta * beta + self._Cl_aileron * self._aileron
+        Cl = (
+            self._Cl_beta * beta
+            + self._Cl_aileron * self._aileron
+            + self._Cl_p * p_hat
+            + self._Cl_r * r_hat
+        )
         
         # Pitch moment (around Y-axis)
-        Cm = self._Cm_0 + self._Cm_alpha * alpha + self._Cm_elevator * self._elevator
+        Cm = (
+            self._Cm_0
+            + self._Cm_alpha * alpha
+            + self._Cm_elevator * self._elevator
+            + self._Cm_q * q_hat
+        )
         
         # Yaw moment (around Z-axis)
-        Cn = self._Cn_beta * beta + self._Cn_rudder * self._rudder
+        Cn = (
+            self._Cn_beta * beta
+            + self._Cn_rudder * self._rudder
+            + self._Cn_p * p_hat
+            + self._Cn_r * r_hat
+        )
 
         carb.log_info(f"Moment Coeffs: Cl (Roll)={Cl:.4f}, Cm (Pitch)={Cm:.4f}, Cn (Yaw)={Cn:.4f}")
         
