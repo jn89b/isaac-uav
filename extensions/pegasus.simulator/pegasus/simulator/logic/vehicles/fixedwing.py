@@ -6,7 +6,7 @@
 """
 
 import numpy as np
-from pxr import UsdPhysics
+from pxr import Usd, UsdPhysics, UsdGeom, Gf
 from scipy.spatial.transform import Rotation
 
 from omni.isaac.dynamic_control import _dynamic_control
@@ -64,6 +64,8 @@ class FixedWingConfig:
         
         # Motor rotation direction (1: CCW, -1: CW when viewed from behind)
         self.prop_rotation_dir = 1
+        self.propeller_joint_name = "propeller_joint"
+        self.prop_visual_max_dof_speed = 60.0
 
         # ============================================
         # AERODYNAMIC COEFFICIENTS
@@ -213,6 +215,8 @@ class FixedWing(Vehicle):
         self._prop_max_rpm = config.prop_max_rpm
         self._prop_thrust_coef = config.prop_thrust_coefficient
         self._prop_rotation_dir = config.prop_rotation_dir
+        self._propeller_joint_name = config.propeller_joint_name
+        self._prop_visual_max_dof_speed = config.prop_visual_max_dof_speed
         
         # Aerodynamic coefficients
         self._CL_0 = config.CL_0
@@ -268,6 +272,9 @@ class FixedWing(Vehicle):
         self._elevator = 0.0      # -1.0 to 1.0 (radians or normalized)
         self._aileron = 0.0       # -1.0 to 1.0
         self._rudder = 0.0        # -1.0 to 1.0
+        self._prop_articulation = None
+        self._prop_joint_handle = None
+        self._prop_joint_resolved = False
 
         self.force_ui = ForceControlWindow()
         self.debug_drawer = DebugVisualizer()
@@ -464,6 +471,7 @@ class FixedWing(Vehicle):
             self.apply_force(aero_forces, body_part="/body")
             self.apply_force(drag_force, body_part="/body")
             self.apply_torque(total_moments, body_part="/body")
+            self._update_propeller_visual(thrust_force[0])
             self._maybe_log_takeoff_viability(dt, thrust_force, aero_forces, drag_force)
 
             self._log_state(
@@ -500,6 +508,7 @@ class FixedWing(Vehicle):
             self.apply_force(aero_forces, body_part="/body")
             self.apply_force(drag_force, body_part="/body")
             self.apply_torque(aero_moments, body_part="/body")
+            self._update_propeller_visual(thrust_force[0])
             self._maybe_log_takeoff_viability(dt, thrust_force, aero_forces, drag_force)
 
             self._log_state(
@@ -772,15 +781,55 @@ class FixedWing(Vehicle):
 
         return dict(forces=forces_flu, moments=moments_flu, aot=alpha, sideslip=beta)
 
-    def _update_propeller_visual(self):
+    def _resolve_propeller_joint(self):
+        """Resolve and cache the DOF handle used for propeller visual spin."""
+        if self._prop_joint_resolved:
+            return
+
+        articulation = self.get_dc_interface().get_articulation(self._stage_prefix + "/propeller")
+        if articulation is None:
+            return
+
+        try:
+            # DOF lookup expects the joint dof token name.
+            joint = self.get_dc_interface().find_articulation_dof(articulation, self._propeller_joint_name)
+            invalid_handle = getattr(_dynamic_control, "INVALID_HANDLE", -1)
+            if joint is not None and joint != invalid_handle:
+                self._prop_articulation = articulation
+                self._prop_joint_handle = joint
+                self._prop_joint_resolved = True
+                carb.log_info(f"FixedWing propeller visual joint resolved: {self._propeller_joint_name}")
+                return
+            self._prop_joint_resolved = True
+            carb.log_warn(f"FixedWing propeller visual joint '{self._propeller_joint_name}' not found under '{self._stage_prefix}'. Skipping visual spin.")
+        except Exception as e:
+            self._prop_joint_resolved = True
+            carb.log_warn(f"Failed resolving fixed-wing propeller joint '{self._propeller_joint_name}': {e}")
+
+    def _update_propeller_visual(self, thrust_n: float = None):
         """
         Updates the propeller joint velocity for visual animation
-        Pervane görselini döndürmek için joint hızını ayarlar
-        
-        USD dosyanızda pervanenin bağlı olduğu joint'in adını bulup buraya yazmanız gerekecek
-        Örnek: "propeller_joint", "joint0", "prop_joint" vb.
         """
-        pass
+        self._resolve_propeller_joint()
+        if self._prop_joint_handle is None:
+            return
+
+        throttle_frac = np.clip(self._throttle, 0.0, 1.0)
+        if thrust_n is not None and self._prop_max_thrust > 1e-6:
+            throttle_frac = max(throttle_frac, float(np.clip(thrust_n / self._prop_max_thrust, 0.0, 1.0)))
+
+        if throttle_frac <= 0.01:
+            target_speed = 0.0
+        else:
+            min_spin = 5.0
+            target_speed = min_spin + throttle_frac * max(self._prop_visual_max_dof_speed - min_spin, 0.0)
+            target_speed *= np.sign(self._prop_rotation_dir) if self._prop_rotation_dir != 0 else 1.0
+
+        try:
+            self.get_dc_interface().set_dof_velocity(self._prop_joint_handle, target_speed)
+        except Exception as e:
+            carb.log_warn(f"Failed to set fixed-wing propeller visual speed: {e}")
+
 
     def set_control_inputs(self, throttle=None, elevator=None, aileron=None, rudder=None):
         """

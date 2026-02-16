@@ -36,15 +36,8 @@ from pegasus.simulator.logic.vehicles.fixedwing import FixedWing, FixedWingConfi
 
 
 class FixedWingApp:
-    """
-    Isaac Sim standalone application for fixed-wing aircraft simulation
-    """
 
     def __init__(self):
-        """
-        Initialize the FixedWingApp and setup the simulation environment
-        """
-
         # Acquire the timeline that will be used to start/stop the simulation
         self.timeline = omni.timeline.get_timeline_interface()
 
@@ -119,7 +112,7 @@ class FixedWingApp:
             stage_prefix="/World/fixedwing0",
             usd_file=ROBOTS['Fixed Wing'],
             vehicle_id=0,
-            init_pos=[0.0, 0.0, 0.2],                    # Start 0.2m above ground
+            init_pos=[0.0, 0.0, 1.0],                    # Start 0.2m above ground
             init_orientation=Rotation.from_euler("XYZ", [0.0, 0.0, 0.0], degrees=True).as_quat(),
             config=config
         )

@@ -29,10 +29,8 @@ ROBOTS_ASSETS = ASSET_PATH + "/Robots"
 
 # Define the built in robots of the extension
 ROBOTS = {"Iris": ROBOTS_ASSETS + "/Iris/iris.usd",
-          # "Fixed Wing": ROBOTS_ASSETS + "/yoda_fixed_wing/yoda_fixed_wing_flattened_backup.usd",
-          "Fixed Wing": ROBOTS_ASSETS + "/yoda_fixed_wing/fixed_wing.usd",
+          "Fixed Wing": ROBOTS_ASSETS + "/fixed_wing/fixed_wing.usd",
           "Flying Cube": ROBOTS_ASSETS + "/yoda_fixed_wing/cube.usd",
-          "bot": ROBOTS_ASSETS + "/yoda_fixed_wing/bot.usd"
         }
 
 # Setup the default simulation environments path
