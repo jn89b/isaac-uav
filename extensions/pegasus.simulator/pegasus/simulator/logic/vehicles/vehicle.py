@@ -168,20 +168,15 @@ class Vehicle(Robot):
         
         # Some magic numbers :)
         offset_pos = Gf.Vec3d(
-            init_pos[0] - 13.685, 
-            init_pos[1] - 0.078, 
-            init_pos[2] + 5.997
+            init_pos[0] + 14.82, 
+            init_pos[1] + 14.12, 
+            init_pos[2] + 9.49
         )
 
         translate_op.Set(offset_pos)
 
         # Some magic numbers here also :)
-        rotate_op.Set(Gf.Vec3f(64.994, -1.141, -88.740))
-
-        # 3. Apply the LookAt Relationship
-        # Ensure we target the 'body' prim which contains the physics/visuals
-        target_path = self._stage_prefix + "/body"
-        self._tracking_cam.CreateRelationship("lookAt").AddTarget(target_path)
+        rotate_op.Set(Gf.Vec3f(64.994, -1.141, 134.45))
 
         for graph in self._graphs:
             graph.initialize(self)

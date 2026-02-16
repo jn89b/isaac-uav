@@ -37,6 +37,7 @@ ROBOTS = {"Iris": ROBOTS_ASSETS + "/Iris/iris.usd",
 
 # Setup the default simulation environments path
 NVIDIA_ASSETS_PATH = str(nucleus.get_assets_root_path())
+
 ISAAC_SIM_ENVIRONMENTS = "/Isaac/Environments"
 NVIDIA_SIMULATION_ENVIRONMENTS = {
     "Default Environment": "Grid/default_environment.usd",

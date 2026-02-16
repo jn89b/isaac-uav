@@ -98,6 +98,9 @@ class FixedWingApp:
         config.Cm_elevator = -1.5              # Elevator pitch moment
         config.Cl_aileron = 0.3                # Aileron roll moment
         config.Cn_rudder = -0.05               # Rudder yaw moment
+
+        # Simulation
+        config.simulation_mode = 'thrust_only' # full, thrust_only
         
         ardupilot_config = ArduPilotMavlinkBackendConfig({
             "vehicle_id": 0,
@@ -109,20 +112,19 @@ class FixedWingApp:
         
         # Combine backends
         config.backends = [
-            # ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
+            #ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
         ]
 
         self.aircraft = FixedWing(
             stage_prefix="/World/fixedwing0",
             usd_file=ROBOTS['Fixed Wing'],
-            # usd_file=ROBOTS['bot'],
             vehicle_id=0,
             init_pos=[0.0, 0.0, 0.2],                    # Start 0.2m above ground
             init_orientation=Rotation.from_euler("XYZ", [0.0, 0.0, 0.0], degrees=True).as_quat(),
             config=config
         )
         
-        print(f"✓ Fixed-wing aircraft created at position [0.0, 0.0, 0.5]")
+        print(f"✓ Fixed-wing aircraft created.")
 
     def run(self):
         """
