@@ -18,7 +18,7 @@ class ArduPilotPlugin:
     def __init__(self, fdm_port_in=9002):
 
         # The address for the flight dynamics model (i.e. this plugin)
-        self.fdm_address = '127.0.0.1'
+        self.fdm_address = '0.0.0.0'
         # The port for the flight dynamics model
         self.fdm_port_in = fdm_port_in
 

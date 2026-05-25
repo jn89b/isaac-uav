@@ -26,7 +26,7 @@ from pegasus.simulator.logic.backends.ardupilot_mavlink_backend import (
     ArduPilotMavlinkBackend, ArduPilotMavlinkBackendConfig
 )
 
-from pegasus.simulator.logic.backends.ros2_backend import ROS2Backend
+# from pegasus.simulator.logic.backends.ros2_backend import ROS2Backend
 from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
 
 from scipy.spatial.transform import Rotation
@@ -101,12 +101,16 @@ class FixedWingApp:
         
         ardupilot_config = ArduPilotMavlinkBackendConfig({
             "vehicle_id": 0,
-            "ardupilot_autolaunch": True,
-            "ardupilot_dir": self.pg.ardupilot_path,
+
+            "connection_type": "udpin",
+            "connection_ip": "172.23.192.1",
+            "connection_baseport": 14550,
+
+            "ardupilot_autolaunch": False,
+            "ardupilot_dir": "",
             "ardupilot_vehicle_model": "plane",
-            "ardupilot_vehicle" : "ArduPlane"
+            "ardupilot_vehicle": "ArduPlane",
         })
-        
         # Combine backends
         config.backends = [
             ArduPilotMavlinkBackend(config=ardupilot_config),  # Uncomment for Ardupilot
